@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIS · Reporte semanal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="assets/css/ris-reportes.css">
+<style>
+/* Filter row: one row above everything it scopes. */
+.filters { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-block: 10px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; border-bottom: 1px solid var(--line); }
+@media (max-width: 700px) { .filters { position: static; } }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 13px; font-weight: 500; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+.chip:hover { background: var(--accent-soft); }
+.chip[aria-pressed="true"] { background: var(--head); color: var(--head-ink); border-color: var(--head); font-weight: 600; }
+.chip:focus-visible, .range input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.range { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.range input { font: inherit; font-size: 13px; border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; background: var(--card); color: var(--ink); }
+.period { font-size: 13px; color: var(--muted); width: 100%; }
+.period b { color: var(--ink); }
+
+/* KPI tiles with goal meters */
+.kpis.goal { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.gk { background: var(--card); border-radius: 16px; padding: 20px; display: grid; gap: 4px; align-content: start; border: 1px solid var(--line); }
+.gk .lbl { font-size: 13px; font-weight: 600; color: var(--ink); }
+.gk .val { font-size: clamp(26px, 3.4vw, 32px); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; border-radius: 99px; background: var(--panel); overflow: hidden; margin: 8px 0 2px; }
+.meter i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.line { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-variant-numeric: tabular-nums; }
+.line b { color: var(--ink); font-weight: 600; }
+.st { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.st::before { content: ""; width: 14px; height: 14px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; line-height: 14px; text-align: center; color: #fff; }
+.st.good::before { content: "✓"; background: #0ca30c; }
+.st.warn::before { content: "!"; background: #fab219; color: var(--ink); }
+.st.bad::before { content: "▼"; background: #d03b3b; font-size: 8px; }
+.st.none::before { content: "–"; background: #A9A9A4; }
+.gk.compact { padding: 16px; background: var(--panel); border: 0; }
+.gk.compact .val { font-size: 22px; }
+
+.minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.mini { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 2px; }
+.mini span { font-size: 12px; color: var(--muted); }
+.mini b { font-size: 18px; font-variant-numeric: tabular-nums; }
+
+/* Chart */
+.chart-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: clamp(16px, 3vw, 24px); display: grid; gap: 12px; }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.chart-head h3 { font-size: 17px; }
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--panel); border-radius: 99px; padding: 3px; }
+.seg button { font: inherit; font-size: 12px; font-weight: 500; border: 0; background: transparent; color: var(--muted); border-radius: 99px; padding: 5px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(20,20,20,.12); }
+.seg button:focus-visible { outline: 2px solid var(--accent); }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 280px; overflow: visible; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .axis text { fill: var(--muted); font-size: 11px; font-family: var(--f); }
+.chart .bar { fill: var(--head); }
+.chart .bar.off { fill: #CFCFCA; }
+.chart .hit:hover + .bar, .chart .bar.on { fill: #4A4A46; }
+.chart .goal { fill: none; stroke: #B38600; stroke-width: 2; stroke-dasharray: 5 4; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend .sw-bar { width: 12px; height: 12px; border-radius: 3px; background: var(--head); }
+.legend .sw-goal { width: 18px; border-top: 2px dashed #B38600; }
+.tip { position: absolute; pointer-events: none; background: var(--head); color: var(--head-ink); font-size: 12px; border-radius: 10px; padding: 8px 10px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); opacity: 0; transition: opacity .1s; }
+.tip b { color: var(--accent); }
+
+.camp-card { background: var(--card); border: 1px solid var(--line); border-bottom: 4px solid var(--accent); border-radius: 16px; padding: clamp(18px, 3vw, 24px); display: grid; gap: 14px; }
+.camp-card header { display: grid; gap: 4px; }
+.camp-card h3 { font-size: 20px; }
+.camp-card .real { font-size: 12px; color: var(--muted); }
+.camp-card .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.camps { display: grid; gap: 16px; }
+td.dim { color: var(--muted); }
+table.tight { font-size: 13px; }
+table.tight th, table.tight td { padding: 10px 9px; }
+table.tight thead th { white-space: normal; vertical-align: bottom; letter-spacing: .03em; }
+tr.now td { background: var(--accent-soft); }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <a class="back" href="index.html">← Todos los documentos</a>
+  <div class="brand"><i></i>ADCOM <span class="sep">×</span> RIS</div>
+  <h1>Reporte semanal · <span>Meta</span></h1>
+  <p>Resultados de Meta y de las dos campañas de conversión frente a las metas del flow general. Elige la semana o el rango de fechas y todo el reporte se recalcula.</p>
+  <div class="actions">
+    <a class="btn" href="https://lookerstudio.google.com/reporting/60560c63-b78a-4e30-a0a8-1d5997f407c4/page/p_zu0jutvzrd" target="_blank" rel="noopener">Abrir dashboard en Looker Studio ↗</a>
+    <a class="btn ghost" href="flow-general.html">Ver el flow general</a>
+  </div>
+</header>
+
+<div class="filters" role="group" aria-label="Filtro de fechas">
+  <div class="presets" id="presets"></div>
+  <div class="range">
+    <label for="since">Desde</label><input type="date" id="since">
+    <label for="until">Hasta</label><input type="date" id="until">
+  </div>
+  <p class="period" id="period"></p>
+</div>
+
+<section class="section">
+  <div class="section-head">
+    <p class="eyebrow">Total de la cuenta</p>
+    <h2>Meta</h2>
+  </div>
+  <div class="kpis goal" id="meta-kpis"></div>
+  <div class="minis" id="meta-minis"></div>
+  <div class="chart-card">
+    <div class="chart-head">
+      <h3 id="chart-title">Resultados por día</h3>
+      <div class="seg" id="metric-seg" role="group" aria-label="Métrica del gráfico"></div>
+    </div>
+    <div class="legend"><span><i class="sw-bar"></i>Real por día</span><span><i class="sw-goal"></i>Meta diaria del flow</span></div>
+    <div class="chart" id="chart"></div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <p class="eyebrow">Meta · Conversión</p>
+    <h2>Las dos campañas</h2>
+  </div>
+  <div class="camps" id="camps"></div>
+  <p class="note" id="others"></p>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <p class="eyebrow">Flow general</p>
+    <h2>Metas de octubre, semana a semana</h2>
+  </div>
+  <div class="panel">
+    <p><b>Meta de octubre:</b> $8.400.000 de inversión · 18.328 visitas ($500 c/u) · 7.164 solicitudes ($1.200 c/u) · 300 desembolsos ($28.000 c/u).</p>
+    <p class="note">La meta mensual se reparte por día (31 días) y se suma por semana. Las semanas van de lunes a domingo; la primera y la última quedan cortas porque octubre empieza un jueves y termina un sábado.</p>
+  </div>
+  <div class="table-wrap">
+    <table id="oct-weeks" class="tight">
+      <thead><tr><th>Semana</th><th>Días</th><th>Presupuesto</th><th>Inversión real</th><th>Visitas meta</th><th>Real</th><th>Solicitudes meta</th><th>Real</th><th>Desembolsos meta</th><th>Real</th></tr></thead>
+      <tbody></tbody><tfoot></tfoot>
+    </table>
+  </div>
+  <div class="table-wrap">
+    <table id="oct-camps">
+      <thead><tr><th>Octubre por campaña</th><th>Participación</th><th>Presupuesto</th><th>Visitas</th><th>Solicitudes</th><th>Desembolsos</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
+<footer id="foot"></footer>
+</div>
+
+<script src="data/ris_meta_daily.js"></script>
+<script>
+(() => {
+  const D = window.RIS_DATA;
+
+  // Flow general oct 2026 – jun 2027 ([RIS] Flow de medios | Propuestas). Unit costs are the flow's targets.
+  const FLOW = {
+    "2026-10": { budget: 8400000,  visits: 18328, leads: 7164,  purchases: 300 },
+    "2026-11": { budget: 9800000,  visits: 20161, leads: 7881,  purchases: 350 },
+    "2026-12": { budget: 12320000, visits: 22177, leads: 8669,  purchases: 400 },
+    "2027-01": { budget: 15264000, visits: 24395, leads: 9536,  purchases: 477 },
+    "2027-02": { budget: 16139200, visits: 26834, leads: 10489, purchases: 524 },
+    "2027-03": { budget: 16156000, visits: 29518, leads: 11538, purchases: 577 },
+    "2027-04": { budget: 19558000, visits: 32470, leads: 12692, purchases: 577 },
+    "2027-05": { budget: 19544000, visits: 35716, leads: 13961, purchases: 698 },
+    "2027-06": { budget: 21716933, visits: 39288, leads: 15357, purchases: 768 },
+  };
+  // Flow campaign ↔ Meta campaign, matched by audience: interest prospecting vs. lookalike/Advantage+ optimized to purchase.
+  const CAMPS = [
+    { id: "120227756872800336", name: "Solicitud de crédito", share: 0.70,
+      about: "Prospección por intereses (créditos, finanzas, mujeres, compras y viajes) para llevar personas a solicitar." },
+    { id: "120228286141930336", name: "Crédito aprobado", share: 0.30,
+      about: "Lookalike de la base Experian y Advantage+, optimizada a compra para atraer perfiles con más probabilidad de aprobación." },
+  ];
+  const METRICS = [
+    { key: "leads", label: "Solicitudes", cost: "Costo por solicitud" },
+    { key: "purchases", label: "Desembolsos", cost: "Costo por desembolso" },
+    { key: "visits", label: "Visitas", cost: "Costo por visita" },
+    { key: "spend", label: "Inversión" },
+  ];
+
+  // ---------- dates (UTC, ISO strings) ----------
+  const DAY = 864e5;
+  const toT = s => Date.parse(s + "T00:00:00Z");
+  const toS = t => new Date(t).toISOString().slice(0, 10);
+  const addD = (s, n) => toS(toT(s) + n * DAY);
+  const daysIn = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+  const eachDay = (a, b) => { const out = []; for (let t = toT(a); t <= toT(b); t += DAY) out.push(toS(t)); return out; };
+  const monday = s => { const wd = (new Date(toT(s)).getUTCDay() + 6) % 7; return addD(s, -wd); };
+  const MES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+  const fmtD = s => `${+s.slice(8)} ${MES[+s.slice(5, 7) - 1]}`;
+  const MIN = D.since, MAX = D.until;
+
+  // ---------- numbers ----------
+  const nf = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+  const n = v => nf.format(Math.round(v));
+  const cop = v => "$" + n(v);
+  const pct = v => new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 }).format(v * 100) + "%";
+  const short = v => v >= 1e6 ? "$" + new Intl.NumberFormat("es-CO", { maximumFractionDigits: 1 }).format(v / 1e6) + " M" : cop(v);
+
+  // ---------- aggregation ----------
+  const ZERO = () => ({ spend: 0, impr: 0, clicks: 0, visits: 0, leads: 0, purchases: 0 });
+  function actual(a, b, campId) {
+    const s = ZERO();
+    for (const r of D.days) {
+      if (r.d < a || r.d > b || (campId && r.c !== campId)) continue;
+      for (const k in s) s[k] += r[k];
+    }
+    return s;
+  }
+  function goalDay(d, share = 1) {
+    const m = FLOW[d.slice(0, 7)];
+    if (!m) return null;
+    const k = share / daysIn(d.slice(0, 7));
+    return { spend: m.budget * k, visits: m.visits * k, leads: m.leads * k, purchases: m.purchases * k };
+  }
+  // Actuals limited to the days the flow has goals for, so goal comparisons are like for like.
+  function actualOnGoalDays(a, b, campId) {
+    const s = ZERO();
+    for (const r of D.days) {
+      if (r.d < a || r.d > b || !FLOW[r.d.slice(0, 7)] || (campId && r.c !== campId)) continue;
+      for (const k in s) s[k] += r[k];
+    }
+    return s;
+  }
+  function goal(a, b, share = 1) {
+    const g = { spend: 0, visits: 0, leads: 0, purchases: 0, days: 0 };
+    for (const d of eachDay(a, b)) { const x = goalDay(d, share); if (!x) continue; g.days++; for (const k in x) g[k] += x[k]; }
+    return g;
+  }
+  const byDay = (a, b) => {
+    const m = {}; for (const d of eachDay(a, b)) m[d] = ZERO();
+    for (const r of D.days) if (m[r.d]) for (const k in m[r.d]) m[r.d][k] += r[k];
+    return m;
+  };
+
+  // ---------- status ----------
+  const st = (cls, txt) => `<span class="st ${cls}">${txt}</span>`;
+  const volStatus = r => r >= 1 ? st("good", "En meta") : r >= .9 ? st("warn", "Cerca de la meta") : st("bad", "Por debajo");
+  const costStatus = (c, t) => { const r = c / t - 1; return r <= 0 ? st("good", `${pct(-r)} bajo la meta`) : r <= .1 ? st("warn", `${pct(r)} sobre la meta`) : st("bad", `${pct(r)} sobre la meta`); };
+  const spendStatus = r => r > 1.05 ? st("warn", "Por encima del plan") : r >= .9 ? st("good", "En plan") : st("warn", "Por debajo del plan");
+
+  function tile(m, act, g, compact, ag = act) {
+    const v = act[m.key], vg = ag[m.key];
+    let body;
+    if (!g.days) {
+      body = `<div class="line">${st("none", "Sin meta en el flow para estas fechas")}</div>`;
+    } else if (m.key === "spend") {
+      const r = vg / g.spend;
+      body = `<div class="meter"><i style="width:${Math.min(r, 1) * 100}%"></i></div>
+        <div class="line">Presupuesto <b>${cop(g.spend)}</b> · ${pct(r)} ${spendStatus(r)}</div>`;
+    } else {
+      const r = vg / g[m.key], c = vg ? ag.spend / vg : 0, t = g.spend / g[m.key];
+      body = `<div class="meter"><i style="width:${Math.min(r, 1) * 100}%"></i></div>
+        <div class="line">Meta <b>${n(g[m.key])}</b> · ${pct(r)} ${volStatus(r)}</div>
+        <div class="line">${m.cost} <b>${vg ? cop(c) : "—"}</b> · meta ${cop(t)} ${vg ? costStatus(c, t) : ""}</div>`;
+    }
+    const val = m.key === "spend" ? cop(v) : n(v);
+    return `<div class="gk${compact ? " compact" : ""}"><span class="lbl">${m.label}</span><span class="val">${val}</span>${body}</div>`;
+  }
+  const ORDER = [METRICS[3], METRICS[2], METRICS[0], METRICS[1]];
+
+  // ---------- chart ----------
+  let metric = "leads";
+  const chartEl = document.getElementById("chart");
+  function drawChart(a, b) {
+    const m = METRICS.find(x => x.key === metric);
+    document.getElementById("chart-title").textContent = `${m.label} por día`;
+    const days = byDay(a, b), keys = Object.keys(days);
+    const W = Math.max(chartEl.clientWidth, 280), H = 280, P = { l: 56, r: 8, t: 12, b: 26 };
+    const gk = metric === "spend" ? "spend" : metric;
+    const goals = keys.map(d => { const g = goalDay(d); return g ? g[gk] : null; });
+    const max = Math.max(1, ...keys.map(d => days[d][metric]), ...goals.filter(x => x != null)) * 1.1;
+    const iw = W - P.l - P.r, ih = H - P.t - P.b, bw = iw / keys.length;
+    const y = v => P.t + ih - (v / max) * ih;
+    const step = (() => { const raw = max / 4, p = 10 ** Math.floor(Math.log10(raw)); return [1, 2, 2.5, 5, 10].map(k => k * p).find(k => k >= raw); })();
+    const fmtAx = v => metric === "spend" ? (v >= 1e6 ? "$" + v / 1e6 + " M" : "$" + n(v / 1e3) + " mil") : n(v);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${m.label} por día frente a la meta diaria">`;
+    svg += `<g class="grid axis">`;
+    for (let v = 0; v <= max; v += step) svg += `<line x1="${P.l}" x2="${W - P.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${P.l - 8}" y="${y(v) + 4}" text-anchor="end">${fmtAx(v)}</text>`;
+    svg += `</g><g class="axis">`;
+    const every = Math.ceil(keys.length / Math.floor(iw / 44));
+    keys.forEach((d, i) => { if (i % every === 0) svg += `<text x="${P.l + bw * i + bw / 2}" y="${H - 6}" text-anchor="middle">${fmtD(d)}</text>`; });
+    svg += `</g>`;
+    const gap = Math.min(6, bw * .25), w = Math.max(bw - gap, 1), rr = Math.min(4, w / 2);
+    keys.forEach((d, i) => {
+      const v = days[d][metric], x = P.l + bw * i + gap / 2, top = y(v), base = y(0);
+      const h = base - top;
+      const path = h <= 0 ? "" : h < rr ? `M${x},${base}h${w}v${-h}h${-w}z`
+        : `M${x},${base}V${top + rr}q0,${-rr} ${rr},${-rr}h${w - 2 * rr}q${rr},0 ${rr},${rr}V${base}z`;
+      svg += `<rect class="hit" data-i="${i}" x="${P.l + bw * i}" y="${P.t}" width="${bw}" height="${ih}" fill="transparent"/><path class="bar${d === MAX ? " off" : ""}" d="${path}"/>`;
+    });
+    // stepped goal line, broken where the flow has no goal
+    let gp = "";
+    goals.forEach((g, i) => { if (g == null) return; const x0 = P.l + bw * i, yy = y(g); gp += (i && goals[i - 1] != null ? `L${x0},${yy}` : `M${x0},${yy}`) + `H${x0 + bw}`; });
+    if (gp) svg += `<path class="goal" d="${gp}"/>`;
+    svg += `</svg><div class="tip" id="tip"></div>`;
+    chartEl.innerHTML = svg;
+    const tip = chartEl.querySelector("#tip");
+    chartEl.querySelectorAll(".hit").forEach(h => {
+      const i = +h.dataset.i, d = keys[i], v = days[d][metric], g = goals[i];
+      const show = () => {
+        h.nextSibling.classList.add("on");
+        const val = metric === "spend" ? cop(v) : n(v);
+        tip.innerHTML = `${fmtD(d)}${d === MAX ? " (día en curso)" : ""}<br><b>${val}</b> ${m.label.toLowerCase()}` + (g != null ? `<br>Meta diaria ${metric === "spend" ? cop(g) : n(g)}` : "");
+        const r = chartEl.getBoundingClientRect(), hb = h.getBoundingClientRect();
+        tip.style.left = Math.min(Math.max(hb.left - r.left + hb.width / 2, 70), r.width - 70) + "px";
+        tip.style.top = (y(Math.max(v, g || 0)) * r.height / H) + "px";
+        tip.style.opacity = 1;
+      };
+      const hide = () => { h.nextSibling.classList.remove("on"); tip.style.opacity = 0; };
+      h.addEventListener("mouseenter", show); h.addEventListener("mouseleave", hide);
+      h.addEventListener("touchstart", show, { passive: true });
+    });
+  }
+
+  // ---------- render ----------
+  const $ = id => document.getElementById(id);
+  function render(a, b) {
+    const act = actual(a, b), g = goal(a, b);
+    const nd = eachDay(a, b).length;
+    $("period").innerHTML = `Mostrando <b>${fmtD(a)} – ${fmtD(b)} ${b.slice(0, 4)}</b> · ${nd} ${nd === 1 ? "día" : "días"}` +
+      (g.days && g.days < nd ? ` · las metas y costos se comparan solo con los ${g.days} días desde el 1 de octubre, cuando empieza el flow` : "") +
+      (b === MAX ? ` · el ${fmtD(MAX)} es el día en curso y puede estar incompleto` : "");
+
+    const ag = actualOnGoalDays(a, b);
+    $("meta-kpis").innerHTML = ORDER.map(m => tile(m, act, g, false, ag)).join("");
+    const ctr = act.impr ? act.clicks / act.impr : 0;
+    $("meta-minis").innerHTML = [
+      ["Impresiones", n(act.impr)], ["Clics en el enlace", n(act.clicks)], ["CTR", pct(ctr)],
+      ["CPM", act.impr ? cop(act.spend / act.impr * 1000) : "—"], ["CPC", act.clicks ? cop(act.spend / act.clicks) : "—"],
+      ["Visita → solicitud", act.visits ? pct(act.leads / act.visits) : "—"], ["Solicitud → desembolso", act.leads ? pct(act.purchases / act.leads) : "—"],
+    ].map(([k, v]) => `<div class="mini"><span>${k}</span><b>${v}</b></div>`).join("");
+
+    $("camps").innerHTML = CAMPS.map(c => {
+      const ca = actual(a, b, c.id), cg = goal(a, b, c.share), cag = actualOnGoalDays(a, b, c.id);
+      const sh = act.spend ? ca.spend / act.spend : 0;
+      return `<article class="camp-card"><header>
+          <span class="tag">Plan ${pct(c.share)} del presupuesto · real ${pct(sh)}</span>
+          <h3>${c.name}</h3><p class="real">En Meta: ${D.campaigns[c.id] || c.id}</p><p class="note">${c.about}</p>
+        </header><div class="kpis">${ORDER.map(m => tile(m, ca, cg, true, cag)).join("")}</div></article>`;
+    }).join("");
+    const others = Object.keys(D.campaigns).filter(id => !CAMPS.some(c => c.id === id))
+      .map(id => [id, actual(a, b, id)]).filter(([, x]) => x.spend > 0);
+    $("others").textContent = others.length
+      ? "También tuvo inversión en estas fechas: " + others.map(([id, x]) => `${D.campaigns[id]} (${cop(x.spend)})`).join(", ") + ". Está incluida en el total de Meta, pero no tiene metas en el flow."
+      : "";
+
+    drawChart(a, b);
+    renderOctober(a, b);
+  }
+
+  function renderOctober(a, b) {
+    const weeks = [];
+    for (let s = "2026-10-01"; s <= "2026-10-31"; ) {
+      const e = [addD(monday(s), 6), "2026-10-31"].sort()[0];
+      weeks.push([s, e]); s = addD(e, 1);
+    }
+    const tot = { g: goal("2026-10-01", "2026-10-31"), a: ZERO() };
+    $("oct-weeks").querySelector("tbody").innerHTML = weeks.map(([s, e]) => {
+      const g = goal(s, e), started = s <= MAX, act = started ? actual(s, [e, MAX].sort()[0]) : null;
+      if (act) for (const k in tot.a) tot.a[k] += act[k];
+      const sel = s <= b && e >= a;
+      const rv = k => act ? (k === "spend" ? cop(act[k]) : n(act[k])) : "—";
+      return `<tr class="${sel ? "now" : ""}"><td>${fmtD(s)} – ${fmtD(e)}${e > MAX && started ? " (en curso)" : ""}</td><td>${g.days}</td>
+        <td>${cop(g.spend)}</td><td class="${act ? "" : "dim"}">${rv("spend")}</td>
+        <td>${n(g.visits)}</td><td class="${act ? "" : "dim"}">${rv("visits")}</td>
+        <td>${n(g.leads)}</td><td class="${act ? "" : "dim"}">${rv("leads")}</td>
+        <td>${n(g.purchases)}</td><td class="${act ? "" : "dim"}">${rv("purchases")}</td></tr>`;
+    }).join("");
+    const T = tot.g;
+    $("oct-weeks").querySelector("tfoot").innerHTML = `<tr><td>Octubre</td><td>31</td><td>${cop(T.spend)}</td><td>${cop(tot.a.spend)}</td><td>${n(T.visits)}</td><td>${n(tot.a.visits)}</td><td>${n(T.leads)}</td><td>${n(tot.a.leads)}</td><td>${n(T.purchases)}</td><td>${n(tot.a.purchases)}</td></tr>`;
+    const O = FLOW["2026-10"];
+    $("oct-camps").querySelector("tbody").innerHTML = CAMPS.map(c => `<tr><td>${c.name}</td><td>${pct(c.share)}</td><td>${cop(O.budget * c.share)}</td><td>${n(O.visits * c.share)}</td><td>${n(O.leads * c.share)}</td><td>${n(O.purchases * c.share)}</td></tr>`).join("")
+      + `<tr><td><b>Total Meta</b></td><td>100%</td><td><b>${cop(O.budget)}</b></td><td><b>${n(O.visits)}</b></td><td><b>${n(O.leads)}</b></td><td><b>${n(O.purchases)}</b></td></tr>`;
+  }
+
+  // ---------- filter ----------
+  const clampS = s => s < MIN ? MIN : s > MAX ? MAX : s;
+  const mStart = s => s.slice(0, 8) + "01";
+  const prevMonthEnd = s => addD(mStart(s), -1);
+  const PRESETS = [
+    ["Últimos 7 días", () => [addD(MAX, -6), MAX]],
+    ["Esta semana", () => [monday(MAX), MAX]],
+    ["Semana pasada", () => [addD(monday(MAX), -7), addD(monday(MAX), -1)]],
+    ["Mes en curso", () => [mStart(MAX), MAX]],
+    ["Mes anterior", () => [mStart(prevMonthEnd(MAX)), prevMonthEnd(MAX)]],
+  ];
+  const sinceEl = $("since"), untilEl = $("until");
+  [sinceEl, untilEl].forEach(el => { el.min = MIN; el.max = MAX; });
+  let active = 0;
+  $("presets").innerHTML = PRESETS.map(([l], i) => `<button type="button" class="chip" data-i="${i}">${l}</button>`).join("");
+  const markPresets = () => $("presets").querySelectorAll(".chip").forEach(b => b.setAttribute("aria-pressed", +b.dataset.i === active));
+  function apply(a, b) {
+    a = clampS(a); b = clampS(b); if (a > b) [a, b] = [b, a];
+    sinceEl.value = a; untilEl.value = b; markPresets(); render(a, b);
+  }
+  $("presets").addEventListener("click", e => { const b = e.target.closest(".chip"); if (!b) return; active = +b.dataset.i; apply(...PRESETS[active][1]()); });
+  [sinceEl, untilEl].forEach(el => el.addEventListener("change", () => { if (!sinceEl.value || !untilEl.value) return; active = -1; apply(sinceEl.value, untilEl.value); }));
+  $("metric-seg").innerHTML = METRICS.map(m => `<button type="button" data-k="${m.key}">${m.label}</button>`).join("");
+  const markSeg = () => $("metric-seg").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.k === metric));
+  $("metric-seg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; metric = b.dataset.k; markSeg(); drawChart(sinceEl.value, untilEl.value); });
+  markSeg();
+  let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => drawChart(sinceEl.value, untilEl.value), 120); });
+
+  const gen = D.generated_at.replace("T", " a las ");
+  $("foot").innerHTML = `Fuente: Meta Ads, cuenta ${D.account_id}, en pesos colombianos. Datos actualizados el ${gen}. Visitas = vistas de la página de destino; solicitudes = evento lead del pixel; desembolsos = evento de compra del pixel. Metas: flow general octubre 2026 – junio 2027.`;
+
+  apply(...PRESETS[0][1]());
+})();
+</script>
+</body>
+</html>
